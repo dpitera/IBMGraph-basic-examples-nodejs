@@ -16,7 +16,7 @@ var gURL = null;
 var gUsername = null;
 var gPassword = null;
 
-if (!gURL || !gUsername || !gPasswprd) {
+if (!gURL || !gUsername || !gPassword) {
     console.log('Please provision your own instance of IBM Graph and replace' +
       'your credentials in the code');
     process.exit(1);
