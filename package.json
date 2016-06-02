@@ -11,7 +11,8 @@
 		"request-promise": "2.0.x",
     "bluebird": "3.3.x",
     "node-uuid": "1.4.x",
-    "util": "0.10.x"
+    "util": "0.10.x",
+    "sleep": "3.0.1"
 	},
 	"repository": {},
 	"engines": {
