@@ -16,7 +16,8 @@ app.use(express.static(__dirname + '/public'));
 var gURL = 'https://localhost:3001/service123/g';
 var gUsername = 'e559051b-c3f4-4fec-84bc-6b8305b875e6';
 var gPassword = '9a96c7f8-c5a5-4c3c-a36b-7e8c6e86dfc3';
-var numIndexes = 100;
+var numIndexes = 2;
+var SEC_WAIT_BEFORE_CHECK_STATUS = 45;
 
 if (!gURL || !gUsername || !gPassword) {
     console.log('Please provision your own instance of IBM Graph and replace' +
@@ -61,7 +62,7 @@ request(graphUserPassPostOpts).then(function (body) {
     console.log('Successfully created a graph. The new apiURL is :', gURL);
     console.log('\n*******************\n');
 
-    var indexes = [];
+    var indexOpts = [];
     for (var j = 0; j < numIndexes; j++) {
         var body = {
             'type': 'vertex',
@@ -69,22 +70,24 @@ request(graphUserPassPostOpts).then(function (body) {
             'unique': false,
             'composite': true,
             'propertyKeys': [
-                {'name': util.format('propKey%s', j), 'cardinality': 'SINGLE', 'dataType': 'String'}
+                {'name': 'propKey', 'cardinality': 'SINGLE', 'dataType': 'String'}
             ]
         };
-        var indexOpts = {
+        var indexOpt = {
             method: 'POST',
             headers: {'Authorization': sessionToken},
             uri: gURL + '/index',
             json: body,
             rejectUnauthorized: false
         };
-        console.log('creating index', j);
-        indexes.push(request(indexOpts));
+        indexOpts.push(indexOpt);
     }
-    return Promise.all(indexes);
+    return Promise.map(indexOpts, function (indexOpt) {
+        return request(indexOpt);
+    }, {concurrency: 1});
 }).then(function (body) {
     console.log('finished creating all indexes');
+    sleep.sleep(SEC_WAIT_BEFORE_CHECK_STATUS);
     var indexes = [];
     for (var j = 0; j < numIndexes; j++) {
         console.log(util.format('body from creating index%s is %s',
@@ -101,7 +104,6 @@ request(graphUserPassPostOpts).then(function (body) {
     }
     return Promise.all(indexes);
 }).then(function (body) {
-    sleep.sleep(180);
     for (var j = 0; j < numIndexes; j++) {
         console.log(util.format('index%s status is %s',
             j, JSON.stringify(body[j].result.data)));
