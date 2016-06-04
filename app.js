@@ -16,8 +16,8 @@ app.use(express.static(__dirname + '/public'));
 var gURL = 'https://localhost:3001/service123/g';
 var gUsername = 'e559051b-c3f4-4fec-84bc-6b8305b875e6';
 var gPassword = '9a96c7f8-c5a5-4c3c-a36b-7e8c6e86dfc3';
-var numIndexes = 2;
-var SEC_WAIT_BEFORE_CHECK_STATUS = 45;
+var numIndexes = 100;
+var SEC_WAIT_BEFORE_CHECK_STATUS = 10;
 
 if (!gURL || !gUsername || !gPassword) {
     console.log('Please provision your own instance of IBM Graph and replace' +
