@@ -16,7 +16,7 @@ app.use(express.static(__dirname + '/public'));
 var gURL = 'https://localhost:3001/service123/g';
 var gUsername = 'e559051b-c3f4-4fec-84bc-6b8305b875e6';
 var gPassword = '9a96c7f8-c5a5-4c3c-a36b-7e8c6e86dfc3';
-var numIndexes = 100;
+var numIndexes = 50;
 var SEC_WAIT_BEFORE_CHECK_STATUS = 10;
 
 if (!gURL || !gUsername || !gPassword) {
@@ -26,6 +26,7 @@ if (!gURL || !gUsername || !gPassword) {
 }
 
 var gBaseURL = gURL.split('/g').join('');
+var gURLS = [];
 
 //Some env variables
 var vertex1; var vertex2; var vertex3; var vertex4;
@@ -49,20 +50,27 @@ request(graphUserPassPostOpts).then(function (body) {
     //Now we will create a new graph
     //Since schemas are immutable, this is useful to begin in a clean environment
     console.log('Creating new graph');
-    var graphCreateOpts = {
-        method: 'POST',
-        headers: {'Authorization': sessionToken},
-        uri: gBaseURL + '/_graphs',
-        json: true,
-        rejectUnauthorized: false
-    };
-    return request(graphCreateOpts);
+    var graphCreateOpts = [];
+    for (var j = 0; j < numIndexes; j++) {
+        var graphCreateOpt = {
+            method: 'POST',
+            headers: {'Authorization': sessionToken},
+            uri: gBaseURL + '/_graphs',
+            json: true,
+            rejectUnauthorized: false
+        };
+        graphCreateOpts.push(request(graphCreateOpt));
+    }
+    return Promise.all(graphCreateOpts);
 }).then(function (body) {
-    gURL = body.dbUrl;
+    for (var j = 0; j < numIndexes; j++) {
+        gURLS[j] = body[j].dbUrl;
+    }
     console.log('Successfully created a graph. The new apiURL is :', gURL);
     console.log('\n*******************\n');
 
     var indexOpts = [];
+    console.log('creating indexes');
     for (var j = 0; j < numIndexes; j++) {
         var body = {
             'type': 'vertex',
@@ -76,7 +84,32 @@ request(graphUserPassPostOpts).then(function (body) {
         var indexOpt = {
             method: 'POST',
             headers: {'Authorization': sessionToken},
-            uri: gURL + '/index',
+            uri: gURLS[j] + '/index',
+            json: body,
+            rejectUnauthorized: false
+        };
+        indexOpts.push(indexOpt);
+    }
+    return Promise.map(indexOpts, function (indexOpt) {
+        return request(indexOpt);
+    }, {concurrency: 1});
+}).then(function (body) {
+    console.log('creating indexes second time');
+    var indexOpts = [];
+    for (var j = 0; j < numIndexes; j++) {
+        var body = {
+            'type': 'vertex',
+            'name': util.format('index__%s', j),
+            'unique': false,
+            'composite': true,
+            'propertyKeys': [
+                {'name': 'propKey', 'cardinality': 'SINGLE', 'dataType': 'String'}
+            ]
+        };
+        var indexOpt = {
+            method: 'POST',
+            headers: {'Authorization': sessionToken},
+            uri: gURLS[j] + '/index',
             json: body,
             rejectUnauthorized: false
         };
@@ -90,13 +123,20 @@ request(graphUserPassPostOpts).then(function (body) {
     sleep.sleep(SEC_WAIT_BEFORE_CHECK_STATUS);
     var indexes = [];
     for (var j = 0; j < numIndexes; j++) {
-        console.log(util.format('body from creating index%s is %s',
-          j, JSON.stringify(body[j].result.data)));
-
         var indexOpts = {
             method: 'GET',
             headers: {'Authorization': sessionToken},
-            uri: gURL + util.format('/index/index%s/status', j),
+            uri: gURLS[j] + util.format('/index/index%s/status', j),
+            rejectUnauthorized: false,
+            json: true
+        };
+        indexes.push(request(indexOpts));
+    }
+    for (var j = 0; j < numIndexes; j++) {
+        var indexOpts = {
+            method: 'GET',
+            headers: {'Authorization': sessionToken},
+            uri: gURLS[j] + util.format('/index/index__%s/status', j),
             rejectUnauthorized: false,
             json: true
         };
@@ -104,7 +144,7 @@ request(graphUserPassPostOpts).then(function (body) {
     }
     return Promise.all(indexes);
 }).then(function (body) {
-    for (var j = 0; j < numIndexes; j++) {
+    for (var j = 0; j < numIndexes * 2; j++) {
         console.log(util.format('index%s status is %s',
             j, JSON.stringify(body[j].result.data)));
     }
